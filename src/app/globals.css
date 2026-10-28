@@ -1,0 +1,73 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Ink: biru-baja gelap untuk struktur dan teks */
+  --color-ink-50: #f4f6f9;
+  --color-ink-100: #e6ebf1;
+  --color-ink-200: #cdd7e2;
+  --color-ink-300: #a3b4c6;
+  --color-ink-400: #7389a1;
+  --color-ink-500: #536a83;
+  --color-ink-600: #3f556c;
+  --color-ink-700: #2f4358;
+  --color-ink-800: #1f3144;
+  --color-ink-900: #12202e;
+  --color-ink-950: #0a1520;
+
+  /* Route: oranye Harrasima (warna logo #E5863C) untuk aksi utama, jalur, dan posisi kendaraan.
+     500 = warna asli logo (elemen dekoratif / di atas navy). 600-700 lebih gelap agar
+     teks dan tombol berlatar putih tetap terbaca (kontras >= 4,5:1). */
+  --color-route-50: #fef3e9;
+  --color-route-100: #fbe3cf;
+  --color-route-400: #f0a267;
+  --color-route-500: #e5863c;
+  --color-route-600: #b85a17;
+  --color-route-700: #964912;
+
+  /* Signal: amber untuk tujuan dan perhatian */
+  --color-signal-100: #fbebc9;
+  --color-signal-400: #f2b544;
+  --color-signal-500: #e39a1c;
+}
+
+body {
+  background: var(--color-ink-50);
+  color: var(--color-ink-800);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-route-600);
+  outline-offset: 2px;
+}
+
+/* Penanda peta (Leaflet divIcon) */
+.tms-pin { display: block; width: 18px; height: 18px; border-radius: 9999px; border: 3px solid #fff; box-shadow: 0 1px 4px rgba(10, 21, 32, 0.45); }
+.tms-pin-origin { background: var(--color-ink-700); }
+.tms-pin-destination { background: var(--color-teal-600); border-radius: 4px; transform: rotate(45deg); }
+.tms-pin-vehicle { background: var(--color-route-500); width: 22px; height: 22px; animation: tms-pulse 2.4s ease-out infinite; }
+.tms-pin-selected { outline: 3px solid rgba(229, 134, 60, 0.4); }
+@keyframes tms-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(229, 134, 60, 0.5), 0 1px 4px rgba(10, 21, 32, 0.45); }
+  70% { box-shadow: 0 0 0 10px rgba(229, 134, 60, 0), 0 1px 4px rgba(10, 21, 32, 0.45); }
+  100% { box-shadow: 0 0 0 0 rgba(229, 134, 60, 0), 0 1px 4px rgba(10, 21, 32, 0.45); }
+}
+
+/* Animasi dashboard (selaras dengan halaman login) */
+@keyframes dash-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes dash-drift { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(40px, 24px) scale(1.15); } }
+@keyframes dash-flow { to { stroke-dashoffset: -120; } }
+@keyframes dash-twinkle { 0%, 100% { opacity: 0.15; } 50% { opacity: 1; } }
+.dash-rise { animation: dash-rise 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.dash-drift { animation: dash-drift 16s ease-in-out infinite; }
+.dash-flow { animation: dash-flow 3.5s linear infinite; }
+.dash-twinkle { animation: dash-twinkle 3.2s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
