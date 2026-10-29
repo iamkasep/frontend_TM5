@@ -1,9 +1,9 @@
 import { sleep } from '@/lib/utils'
 
 const clone = (value) => JSON.parse(JSON.stringify(value))
-const storageKey = (prefix) => `tms_demo_collection_${prefix}_v2`
+const storageKey = (prefix) => `tms_demo_collection_${prefix}_v4`
 
-export const TRIPS_MOCK_KEY = 'tms_demo_trips_v2'
+export const TRIPS_MOCK_KEY = 'tms_demo_trips_v4'
 
 /** Notifikasi internal agar halaman role lain ikut memuat ulang data simulasi. */
 export function notifyDemoDataChanged(key = '') {

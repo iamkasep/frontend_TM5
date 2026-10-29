@@ -4,6 +4,7 @@ import PageHeader from '@/components/layout/PageHeader'
 import DataTable from '@/components/tables/DataTable'
 import Button from '@/components/ui/Button'
 import { shipmentColumns } from '@/components/sections/shipments/ShipmentColumns'
+import DriverShipmentList from '@/components/sections/shipments/DriverShipmentList'
 import { useAuth } from '@/hooks/useAuth'
 import { useShipments } from '@/hooks/useShipments'
 import { ACTIVE_STATUSES, HISTORY_STATUSES, STATUS_OPTIONS } from '@/lib/constants'
@@ -71,6 +72,19 @@ export default function ShipmentsPage({ mode = 'all' }) {
     : user.role === 'superadmin' ? 'Semua Pengiriman'
       : isStaff ? 'Manajemen Pengiriman' : 'Pengiriman Saya'
   const description = mode === 'history' ? 'Pengiriman yang sudah selesai atau dibatalkan.' : 'Cari, saring, dan buka detail pengiriman.'
+
+  // Driver memakai tampilan kartu yang dioptimalkan untuk ponsel (tanpa tabel lebar).
+  if (user.role === 'driver') {
+    return (
+      <>
+        <PageHeader
+          title={mode === 'history' ? 'Riwayat Pengiriman' : 'Tugas Pengiriman'}
+          description={mode === 'history' ? 'Pengiriman yang sudah selesai atau dibatalkan.' : 'Ketuk kartu untuk membuka detail dan memperbarui status.'}
+        />
+        <DriverShipmentList rows={rows} loading={loading} error={error} onRetry={reload} mode={mode === 'history' ? 'history' : 'active'} />
+      </>
+    )
+  }
 
   return (
     <>

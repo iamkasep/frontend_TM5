@@ -1,14 +1,10 @@
 import { useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
-import { Building2, ShieldCheck, Truck, UserCog, Eye, EyeOff, LogIn, User, Lock, Info } from 'lucide-react'
+import { Eye, EyeOff, LogIn, User, Lock, Info } from 'lucide-react'
 import logo from '@/assets/logo-hd.png'
 import { useAuth } from '@/hooks/useAuth'
-import { ROLE_LABEL } from '@/lib/constants'
-import { DEMO_ACCOUNTS } from '@/services/authService'
-import { USE_MOCK } from '@/services/api'
 import { cn } from '@/lib/utils'
 
-const ICONS = { superadmin: ShieldCheck, admin: UserCog, driver: Truck, customer: Building2 }
 const REMEMBER_KEY = 'tms_remember_username'
 const ROUTE_PATH = 'M-50 700 C 250 650, 350 400, 640 450 S 1000 250, 1500 150'
 
@@ -130,13 +126,6 @@ export default function Login() {
     }
   }
 
-  const chooseDemo = (account) => {
-    setUsername(account.username)
-    setPassword(account.password)
-    setError('')
-    setNotice('')
-  }
-
   const delay = (ms) => ({ animationDelay: `${ms}ms` })
 
   return (
@@ -163,7 +152,7 @@ export default function Login() {
           </div>
 
           <div className="mt-10 max-w-md">
-            {USE_MOCK && <p className="text-[11px] text-ink-400">Mode demo frontend · Data tersimpan di browser ini</p>}
+            <p className="text-xs text-ink-400">PT Harrasima Inventory Logistic · Sistem Manajemen Transportasi & Pelacakan Kargo</p>
           </div>
         </div>
 
@@ -194,7 +183,7 @@ export default function Login() {
                   <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="size-4 rounded accent-route-500" />
                   Ingat username
                 </label>
-                <button type="button" onClick={() => setNotice('Reset password belum tersedia di mode demo. Hubungi administrator.')} className="font-semibold text-route-400 transition hover:text-route-100 hover:underline">Lupa password?</button>
+                <button type="button" onClick={() => setNotice('Untuk pengaturan ulang kata sandi, silakan hubungi Administrator IT / Operasional.')} className="font-semibold text-route-400 transition hover:text-route-100 hover:underline">Lupa password?</button>
               </div>
 
               {notice && <p className="flex items-start gap-2 rounded-xl bg-ink-800 px-3 py-2 text-xs text-ink-100" role="status"><Info className="mt-0.5 size-3.5 shrink-0" aria-hidden />{notice}</p>}
@@ -206,27 +195,7 @@ export default function Login() {
               </button>
             </form>
 
-            {USE_MOCK && DEMO_ACCOUNTS.length > 0 && <section className="tms-rise mt-6 border-t border-ink-700 pt-5" style={delay(700)} aria-labelledby="demo-accounts-heading">
-              <div className="mb-2.5 flex items-center justify-between gap-3">
-                <div><h3 id="demo-accounts-heading" className="text-sm font-bold">Akun demo</h3><p className="text-xs text-ink-300">Pilih role untuk mengisi kredensial otomatis.</p></div>
-                <span className="rounded-full bg-amber-950 px-2.5 py-1 text-xs font-semibold text-amber-200 ring-1 ring-amber-300/30">DUMMY</span>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                {DEMO_ACCOUNTS.map((account) => {
-                  const Icon = ICONS[account.role]
-                  const selected = username === account.username
-                  return (
-                    <button key={account.role} type="button" onClick={() => chooseDemo(account)} className={cn('flex min-w-0 items-center gap-2.5 rounded-xl border p-2.5 text-left transition hover:-translate-y-0.5 hover:border-route-400 hover:bg-ink-700', selected ? 'border-route-400 bg-ink-700 ring-1 ring-route-400/40' : 'border-ink-600 bg-ink-800')}>
-                      <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-route-500/20 text-route-400"><Icon className="size-4" /></span>
-                      <span className="min-w-0 flex-1"><span className="block truncate text-xs font-bold">{ROLE_LABEL[account.role]}</span><span className="block truncate text-[11px] text-ink-300">{account.name}</span></span>
-                    </button>
-                  )
-                })}
-              </div>
-              <p className="mt-3 text-[11px] leading-relaxed text-ink-300">Password semua akun: <code className="rounded bg-ink-800 px-1.5 py-0.5 text-white">TMSdemo123!</code> · Autentikasi ini hanya simulasi frontend; produksi tetap perlu backend dan password yang di-hash.</p>
-            </section>}
-
-            <p className="mt-5 text-center text-xs text-ink-300">Belum punya akun? Hubungi administrator.</p>
+            <p className="mt-5 text-center text-xs text-ink-300">Belum punya akun? Hubungi administrator operasional.</p>
           </div>
         </div>
       </div>

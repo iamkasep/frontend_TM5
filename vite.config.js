@@ -15,8 +15,11 @@ export default defineConfig(({ mode }) => {
     resolve: {
       alias: { '@': path.resolve(__dirname, './src') },
     },
-    server: proxyTarget
-      ? { proxy: { '/api': { target: proxyTarget, changeOrigin: true, rewrite: (p) => p.replace(/^\/api/, '') } } }
-      : undefined,
+    server: {
+      host: true, // Izinkan akses dari perangkat lain di jaringan lokal (HP / Tablet)
+      ...(proxyTarget
+        ? { proxy: { '/api': { target: proxyTarget, changeOrigin: true, rewrite: (p) => p.replace(/^\/api/, '') } } }
+        : {}),
+    },
   }
 })

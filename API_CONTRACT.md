@@ -179,17 +179,17 @@ Route::middleware('auth:sanctum')->group(function () {
 
 ---
 
-### 5.2 Data Master
+### 5.2 Data Master (Sesuai Skema Database Existing)
 
-| Endpoint | Field Objek yang Dipakai UI | Nilai `status` yang Valid |
-|---|---|---|
-| `/companies` | `id, name, code, domain, contactPerson, email, phone, plan, status` | `'active' \| 'inactive'` |
-| `/admins` | `id, name, email, phone, status` | `'active' \| 'inactive'` |
-| `/customers` | `id, name, contactPerson, email, phone, city, status` | `'active' \| 'inactive'` |
-| `/vendors` | `id, vendorCode, name, type ('internal' \| 'external'), contactPerson, phone, email, npwp, address, city, province, postalCode, status` | `'active' \| 'inactive'` |
-| `/drivers` | `id, driverCode, name, phone, licenseNumber, vendorId, vendorName, vehicleId, vehiclePlate, status` | `'available' \| 'on_duty' \| 'off'` |
-| `/vehicles` | `id, plate, type ('Pickup' \| 'Truk Engkel' \| 'CDD' \| 'Fuso' \| 'Wingbox'), capacityKg, capacityM3, vendorId, vendorName, status` | `'available' \| 'in_use' \| 'maintenance'` |
-| `/locations` | `id, code, name, type ('warehouse' \| 'airport' \| 'customer_site' \| 'port' \| 'other'), address, latitude, longitude, status` | `'active' \| 'inactive'` *(Saat dihapus di UI, frontend mengirim `PATCH /locations/{id}` dengan `{ "status": "inactive" }`)* |
+| Endpoint | Tabel Database | Kolom Database (`snake_case` / `camelCase`) | Nilai Status / Enum |
+|---|---|---|---|
+| `/vendors` | `dm_vendors` | `id, vendor_code, vendor_name, vendor_type, npwp, contact_person, phone_number, email, address, city, province, postal_code, is_active, remarks, created_at, created_by, updated_at, updated_by` | `vendor_type`: `'TRANSPORTER' \| 'COURIER' \| 'THIRD_PARTY'`<br>`is_active`: `true/false` (`1/0`) atau `status: 'active' \| 'inactive'` |
+| `/vehicles` | `dm_vehicles` | `id, plate_number, vehicle_type, capacity_kg, capacity_m3, vendor_id, status` | `status`: `'active' \| 'maintenance' \| 'inactive'` |
+| `/drivers` | `dm_drivers` | `id, driver_code, driver_name, phone_number, vendor_id, status` | `status`: `'active' \| 'inactive'` |
+| `/locations` | `dm_locations` | `id, code, name, type ('warehouse' \| 'airport' \| 'customer_site' \| 'port' \| 'other'), address, latitude, longitude, status` | `status`: `'active' \| 'inactive'` *(Soft delete via `PATCH /locations/{id}`)* |
+| `/customers` | `dm_customers` | `id, name, contact_person, email, phone, city, status` | `status`: `'active' \| 'inactive'` |
+| `/admins` | `dm_admins` | `id, name, email, phone, status` | `status`: `'active' \| 'inactive'` |
+| `/companies` | `dm_companies` | `id, name, code, domain, contact_person, email, phone, plan, status` | `status`: `'active' \| 'inactive'` |
 
 ---
 
@@ -248,55 +248,58 @@ Route::middleware('auth:sanctum')->group(function () {
 
 ---
 
-### 5.4 Manajemen Trip & Tracking Event (`/trips` & `/tracking-events`)
+### 5.4 Manajemen Trip, Trip Shipments, & Tracking Event (`dt_trips`, `dt_trip_shipments`, `dt_tracking_events`)
 
-**Struktur Objek Trip (`GET /trips` & `GET /trips/{id}`):**
+**Struktur Objek Trip (`GET /trips` & `GET /trips/{id}` — Tabel `dt_trips` + relasi `dt_trip_shipments`):**
 ```json
 {
   "id": "TRP-001",
-  "tripCode": "TRIP-20261028-001",
+  "tripNumber": "TRIP-20261028-001",
   "vendorId": "VND-001",
   "driverId": "DRV-001",
-  "driverName": "Budi Santoso",
   "vehicleId": "VHC-001",
-  "vehiclePlate": "D 1234 HIL",
-  "originLocationId": "LOC-001",
-  "destinationLocationId": "LOC-002",
   "origin": "Gudang Bandung",
   "destination": "Bandara Soekarno-Hatta",
-  "originLat": -6.9147,
-  "originLng": 107.6098,
-  "destinationLat": -6.1256,
-  "destinationLng": 106.6559,
   "plannedDeparture": "2026-10-28T09:00:00.000Z",
-  "plannedArrival": "2026-10-28T16:00:00.000Z",
   "actualDeparture": null,
+  "plannedArrival": "2026-10-28T16:00:00.000Z",
   "actualArrival": null,
   "status": "planned",
   "notes": "",
-  "shipmentIds": ["SHP-001", "SHP-002"]
+  "shipmentIds": ["SHP-001"],
+  "tripShipments": [
+    {
+      "id": "TS-001",
+      "tripId": "TRP-001",
+      "awbId": "SHP-001",
+      "deliveryStatus": "IN_TRANSIT",
+      "loadedAt": "2026-10-28T09:00:00.000Z",
+      "deliveredAt": null
+    }
+  ]
 }
 ```
-- **Nilai `status` Trip yang valid:** `'planned'`, `'loading'`, `'in_progress'`, `'completed'`, `'cancelled'`.
-- **Relasi Trip ↔ AWB:**
-  - `POST /trips/{id}/shipments` dengan body `{ "awbId": "SHP-001" }` menghubungkan shipment ke trip (dan bila trip punya driver sementara shipment masih `pending`, otomatis tugaskan driver tersebut ke shipment).
+- **Nilai `status` Trip (`dt_trips.status`):** `'planned'`, `'loading'`, `'in_progress'`, `'completed'`, `'cancelled'`.
+- **Relasi Trip ↔ AWB (`dt_trip_shipments`):**
+  - Kolom tabel `dt_trip_shipments`: `id`, `trip_id`, `awb_id`, `delivery_status` (`'LOADING' | 'IN_TRANSIT' | 'ARRIVED' | 'DELIVERED'`), `loaded_at`, `delivered_at`.
+  - `POST /trips/{id}/shipments` dengan body `{ "awbId": "SHP-001" }` menghubungkan shipment ke trip.
   - `DELETE /trips/{id}/shipments/{shipmentId}` melepas shipment dari trip.
-- **Tracking Events (`GET /tracking-events?trip_id=TRP-001` & `POST /tracking-events`):**
+- **Tracking Events (`GET /tracking-events?trip_id=TRP-001` & `POST /tracking-events` — Tabel `dt_tracking_events`):**
   ```json
   {
     "id": "EVT-001",
     "tripId": "TRP-001",
-    "eventType": "position_update",
-    "source": "sms",
+    "awbId": "TMS-20261028-001",
+    "eventType": "IN_TRANSIT",
     "latitude": -6.5512,
     "longitude": 107.2198,
-    "positionObtainedAt": "2026-10-28T11:30:00.000Z",
-    "enteredAt": "2026-10-28T11:35:00.000Z",
-    "enteredBy": "Rina Kusuma",
-    "remarks": "Posisi terakhir dari SMS operator kargo",
-    "podId": null
+    "source": "SMS",
+    "eventTime": "2026-10-28T11:30:00.000Z",
+    "idPod": null,
+    "remarks": "Posisi terakhir dari SMS operator kargo"
   }
   ```
+  - **Kolom `dt_tracking_events`:** `id`, `trip_id`, `awb_id` (nullable), `event_type` (`'IN_TRANSIT' | 'ARRIVED' | 'DELIVERED' | 'LOADING' | 'EXCEPTION'`), `latitude`, `longitude`, `source` (`'GPS' | 'SMS' | 'whatsapp' | 'manual' | 'API'`), `event_time`, `id_pod` (FK ke POD), `remarks`.
 
 ---
 

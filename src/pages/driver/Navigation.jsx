@@ -13,13 +13,12 @@ import { useShipments } from '@/hooks/useShipments'
 import { ACTIVE_STATUSES } from '@/lib/constants'
 import { getCurrentPosition } from '@/lib/geo'
 import { useGps } from '@/hooks/useGps'
-import { USE_MOCK } from '@/services/api'
 
 const fmt = (value, digits = 6) => Number(value).toFixed(digits)
 
 export default function DriverNavigation() {
   const { data, loading, error, reload } = useShipments()
-  const { tracking, position, lastUpdated, error: gpsError, start: startGps, stop: stopGps } = useGps()
+  const { tracking, wakeLockActive, position, lastUpdated, error: gpsError, start: startGps, stop: stopGps } = useGps()
 
   const active = (data ?? []).filter((s) => ACTIVE_STATUSES.includes(s.status))
   const s = active.find((x) => x.status === 'in_transit') ?? active[0]
@@ -39,7 +38,7 @@ export default function DriverNavigation() {
       })
     } else {
       const simulated = getCurrentPosition(s)
-      result.push({ id: 'v', kind: 'vehicle', position: simulated, label: `Posisi kendaraan${USE_MOCK ? ' (simulasi)' : ''}` })
+      result.push({ id: 'v', kind: 'vehicle', position: simulated, label: 'Posisi kendaraan terakhir' })
     }
     return result
   }, [s, position])
@@ -59,12 +58,15 @@ export default function DriverNavigation() {
                 <Badge tone={gpsError ? 'red' : tracking && position ? 'green' : 'amber'}>
                   {gpsError ? 'GPS bermasalah' : tracking && position ? 'GPS real-time aktif' : tracking ? 'Mencari sinyal GPS…' : 'GPS belum aktif'}
                 </Badge>
+                {tracking && wakeLockActive && (
+                  <Badge tone="blue">Layar terjaga tetap menyala</Badge>
+                )}
               </div>
               {position ? (
                 <div className="mt-1 space-y-1 text-sm text-ink-600">
                   <p>Latitude: <span className="font-mono font-semibold">{fmt(position.lat)}</span> · Longitude: <span className="font-mono font-semibold">{fmt(position.lng)}</span></p>
                   <p>Akurasi ±{Math.round(position.accuracy)} meter{lastUpdated ? ` · Diperbarui ${lastUpdated.toLocaleTimeString('id-ID')}` : ''}</p>
-                  <p className="text-xs text-ink-500">Pelacakan tetap aktif saat Anda membuka menu lain, sampai Anda menekan Hentikan GPS atau logout. Lokasi dibaca di browser ini. Bila internet terputus, koordinat terakhir dikirim otomatis ke admin sebagai notifikasi.</p>
+                  <p className="text-xs text-ink-500">Pelacakan tetap aktif saat Anda membuka menu lain, menjaga layar perangkat tidak terkunci otomatis, dan langsung menyegarkan titik GPS saat layar dibuka kembali.</p>
                 </div>
               ) : (
                 <p className="mt-1 text-sm text-ink-500">Aktifkan GPS untuk membaca lokasi perangkat Anda saat ini. Browser akan meminta izin lokasi.</p>
@@ -96,7 +98,7 @@ export default function DriverNavigation() {
             <Card><EmptyState title="Tidak ada pengiriman aktif" description="Peta akan muncul saat Anda memiliki tugas pengiriman." /></Card>
           ) : (
             <>
-              <TrackingMap markers={markers} fitKey={s.id} height={380} plan={[[s.origin.lat, s.origin.lng], [s.destination.lat, s.destination.lng]]} />
+              <TrackingMap markers={markers} fitKey={s.id} height={380} />
               <Card>
                 <CardBody>
                   <div className="flex items-center justify-between gap-3">

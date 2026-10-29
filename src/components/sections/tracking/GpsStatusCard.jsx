@@ -18,7 +18,7 @@ const PERM = {
  * Posisi TIDAK dikirim ke server: pelaporan lokasi menunggu spesifikasi backend.
  */
 export default function GpsStatusCard() {
-  const { tracking, position, error, permission, start, stop } = useGps()
+  const { tracking, wakeLockActive, position, error, permission, start, stop } = useGps()
   const p = PERM[permission] ?? PERM.unknown
   const searching = tracking && !position
 
@@ -33,12 +33,13 @@ export default function GpsStatusCard() {
             <h2 className="text-sm font-bold text-ink-900">Status lokasi perangkat</h2>
             <Badge tone={p.tone}>{p.label}</Badge>
             {tracking && <Badge tone={position ? 'green' : 'amber'}>{position ? 'Pelacakan aktif' : 'Mencari sinyal GPS…'}</Badge>}
+            {tracking && wakeLockActive && <Badge tone="blue">Layar terjaga</Badge>}
           </div>
           <p className="mt-1 text-sm text-ink-500">
             {position
               ? `Terbaca di perangkat ini: ${position.lat.toFixed(4)}, ${position.lng.toFixed(4)} (akurasi ±${Math.round(position.accuracy)} m). `
               : ''}
-            Bila internet terputus, koordinat terakhir dikirim otomatis ke admin sebagai notifikasi. Tracking di aplikasi ini masih simulasi sampai backend siap.
+            Bila internet terputus, koordinat terakhir dikirim otomatis ke admin sebagai notifikasi untuk pemantauan perjalanan.
           </p>
           {error && <p className="mt-1 text-sm text-rose-600" role="alert">{error}</p>}
         </div>

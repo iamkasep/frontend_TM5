@@ -1,6 +1,5 @@
 import { getProgress, getRealPosition, getRemainingKm, POSITION_SOURCE_LABEL } from '@/lib/geo'
 import { formatDateTime } from '@/lib/formatters'
-import { USE_MOCK } from '@/services/api'
 
 const formatKm = (km) => `${km < 10 ? km.toFixed(1) : Math.round(km)}`.replace('.', ',') + ' km'
 
@@ -14,10 +13,11 @@ export default function JourneyProgress({ shipment: s, livePoint = null }) {
   const real = getRealPosition(s)
   const delivered = s.status === 'delivered'
 
-  let basis = ''
-  if (livePoint) basis = 'Dihitung dari jarak GPS perangkat ini ke tujuan (real-time).'
-  else if (real) basis = `Dihitung dari jarak ke tujuan berdasarkan ${POSITION_SOURCE_LABEL[real.source]} pukul ${formatDateTime(real.at)}.`
-  else if (USE_MOCK) basis = 'Belum ada posisi nyata, progres masih simulasi dari status pengiriman.'
+  const basis = livePoint
+    ? 'Dihitung dari jarak GPS perangkat ini ke tujuan (real-time).'
+    : real
+      ? `Dihitung dari jarak ke tujuan berdasarkan ${POSITION_SOURCE_LABEL[real.source]} pukul ${formatDateTime(real.at)}.`
+      : 'Progres dihitung berdasarkan tahapan status pengiriman terakhir.'
 
   return (
     <div>

@@ -91,7 +91,7 @@ export default function ShipmentDetailPage() {
       { id: 'o', kind: 'origin', position: [s.origin.lat, s.origin.lng], label: `Asal: ${s.origin.city}` },
       { id: 'd', kind: 'destination', position: [s.destination.lat, s.destination.lng], label: `Tujuan: ${s.destination.city}` },
     ]
-    if (ACTIVE_STATUSES.includes(s.status)) m.push({ id: 'v', kind: 'vehicle', position: getCurrentPosition(s), label: `Posisi terakhir${getRealPosition(s) ? ' (manual dari SMS)' : USE_MOCK ? ' (simulasi)' : ''}` })
+    if (ACTIVE_STATUSES.includes(s.status)) m.push({ id: 'v', kind: 'vehicle', position: getCurrentPosition(s), label: `Posisi terakhir${getRealPosition(s) ? ' (manual dari SMS)' : ''}` })
     return m
   }, [s])
 
@@ -158,15 +158,6 @@ export default function ShipmentDetailPage() {
         : []),
     ]
     : overallMarkers
-  const tripRoute = selectedTripEvents
-    .filter((event) => hasValidCoordinates(event.latitude, event.longitude))
-    .slice()
-    .reverse()
-    .map((event) => [
-      Number(event.latitude),
-      Number(event.longitude),
-      ['admin_manual', 'sms', 'manual'].includes(event.source) ? 'manual' : undefined,
-    ])
 
   const cancel = async () => {
     setBusy(true)
@@ -232,21 +223,19 @@ export default function ShipmentDetailPage() {
                   </div>
                 )}
                 <TrackingMap
-                  markers={mapMarkers} fitKey={`${s.id}-${selectedTripId || 'overall'}`} height={340}
-                  plan={mapPlan}
-                  route={selectedTrip ? tripRoute : (s.history || []).map((h) => [h.lat, h.lng, h.source === 'admin_manual' ? 'manual' : undefined])}
+                  markers={mapMarkers}
+                  fitKey={`${s.id}-${selectedTripId || 'overall'}`}
+                  height={340}
                 />
-                {USE_MOCK && (
-                  <p className="mt-2 text-xs text-ink-500">
-                    {selectedTrip
-                      ? (selectedRealEvent
-                        ? `Posisi terakhir trip berasal dari ${selectedRealEvent.source || 'pembaruan manual'}; peta mengikuti data trip yang dipilih.`
-                        : 'Belum ada koordinat aktual untuk trip ini. Peta menampilkan rute asal–tujuan trip, bukan posisi GPS realtime.')
-                      : (getRealPosition(s)
-                        ? `Posisi terakhir pengiriman berasal dari ${POSITION_SOURCE_LABEL[getRealPosition(s).source]}.`
-                        : 'Peta utama menampilkan progres keseluruhan secara simulasi; posisi GPS nyata hanya tersedia bila ada pembaruan lokasi.')}
-                  </p>
-                )}
+                <p className="mt-2 text-xs text-ink-500">
+                  {selectedTrip
+                    ? (selectedRealEvent
+                      ? `Posisi terakhir trip berasal dari ${selectedRealEvent.source || 'pembaruan posisi'}; peta mengikuti data trip yang dipilih.`
+                      : 'Belum ada koordinat aktual untuk trip ini. Peta menampilkan rute asal–tujuan trip.')
+                    : (getRealPosition(s)
+                      ? `Posisi terakhir pengiriman berasal dari ${POSITION_SOURCE_LABEL[getRealPosition(s).source]}.`
+                      : 'Peta utama menampilkan estimasi progres rute pengiriman dan akan mengikuti titik GPS aktual saat lokasi diperbarui.')}
+                </p>
               </div>
 
               <Card>

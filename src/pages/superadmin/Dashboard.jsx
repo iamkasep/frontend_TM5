@@ -13,7 +13,6 @@ import { shipmentService } from '@/services/shipmentService'
 import { driverService } from '@/services/driverService'
 import { vehicleService } from '@/services/vehicleService'
 import { trackingService } from '@/services/trackingService'
-import { USE_MOCK } from '@/services/api'
 import { summarize } from '@/lib/stats'
 import { greeting } from '@/lib/utils'
 
@@ -49,15 +48,15 @@ export default function SuperadminDashboard() {
                 <StatCard label="Sedang berjalan" value={sum.active} icon={Activity} tone="route" />
                 <StatCard label="Terkirim" value={sum.delivered} icon={CheckCircle2} tone="green" />
                 <StatCard label="Bermasalah" value={sum.issues} icon={AlertTriangle} tone="red" hint="Terlambat + dibatalkan" />
-                <StatCard label="Driver bertugas" value={data.drivers.filter((d) => d.status === 'on_duty').length} icon={UserCheck} tone="amber" />
-                <StatCard label="Kendaraan tersedia" value={data.vehicles.filter((v) => v.status === 'available').length} icon={Truck} />
+                <StatCard label="Driver aktif" value={data.drivers.filter((d) => ['active', 'on_duty', 'available'].includes(String(d.status).toLowerCase())).length} icon={UserCheck} tone="amber" />
+                <StatCard label="Kendaraan aktif" value={data.vehicles.filter((v) => ['active', 'available'].includes(String(v.status).toLowerCase())).length} icon={Truck} />
               </div>
               <div className="grid gap-5 lg:grid-cols-2">
                 <StatusDonut summary={sum} />
                 <TrendChart shipments={data.shipments} />
               </div>
               <Card>
-                <CardHeader title="Peta monitoring" subtitle={`${markers.length} pengiriman aktif${USE_MOCK ? ' · posisi simulasi' : ''}`} />
+                <CardHeader title="Peta monitoring" subtitle={`${markers.length} pengiriman aktif dalam pemantauan`} />
                 <div className="p-3"><TrackingMap markers={markers} height={380} fitKey={markers.length} /></div>
               </Card>
               <ActivityCard shipments={data.shipments} basePath="/superadmin" />

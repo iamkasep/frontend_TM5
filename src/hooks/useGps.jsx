@@ -8,6 +8,27 @@ const STORAGE_KEY = 'tms_gps_tracking'
 const WATCH_OPTIONS = { enableHighAccuracy: true, maximumAge: 1000, timeout: 15000 }
 
 const supported = () => typeof navigator !== 'undefined' && !!navigator.geolocation
+const wakeLockSupported = () => typeof navigator !== 'undefined' && 'wakeLock' in navigator
+
+const readSavedTrackingUser = () => {
+  try {
+    return sessionStorage.getItem(STORAGE_KEY) || localStorage.getItem(STORAGE_KEY)
+  } catch {
+    return null
+  }
+}
+
+const writeSavedTrackingUser = (value) => {
+  try {
+    if (value) {
+      sessionStorage.setItem(STORAGE_KEY, value)
+      localStorage.setItem(STORAGE_KEY, value)
+    } else {
+      sessionStorage.removeItem(STORAGE_KEY)
+      localStorage.removeItem(STORAGE_KEY)
+    }
+  } catch { /* abaikan bila storage diblokir */ }
+}
 
 const ERROR_MESSAGES = {
   1: 'Izin lokasi ditolak. Klik ikon lokasi di address bar browser dan izinkan akses lokasi.',
@@ -18,23 +39,81 @@ const ERROR_MESSAGES = {
 /**
  * Pelacakan GPS perangkat yang hidup di level aplikasi (bukan per halaman),
  * sehingga tetap aktif ketika driver berpindah menu.
- * Posisi disimpan/dikirim lewat driverIncidentService (mode API: POST /driver-locations).
+ * Dilengkapi:
+ * 1. Screen Wake Lock API (`navigator.wakeLock`) agar layar HP Android tidak mati otomatis saat melacak.
+ * 2. Auto-Resume (`visibilitychange`) agar saat layar HP dinyalakan kembali dari kondisi terkunci,
+ *    sensor GPS langsung di-refresh dan mengirim titik koordinat terbaru seketika.
  */
 export function GpsProvider({ children }) {
   const { user } = useAuth()
   const userId = user?.id ?? null
   const watchIdRef = useRef(null)
-  // Nama terbaru disimpan di ref agar callback GPS tidak memakai nama lama setelah profil diubah.
+  const wakeLockRef = useRef(null)
+  const trackingRef = useRef(false)
   const userNameRef = useRef(user?.name ?? 'Driver')
   useEffect(() => { userNameRef.current = user?.name ?? 'Driver' }, [user?.name])
+
   const [tracking, setTracking] = useState(false)
+  const [wakeLockActive, setWakeLockActive] = useState(false)
   const [position, setPosition] = useState(() => getLastDriverPosition())
   const [lastUpdated, setLastUpdated] = useState(null)
   const [error, setError] = useState('')
   const [permission, setPermission] = useState(() => (supported() ? 'unknown' : 'unsupported'))
 
+  useEffect(() => {
+    trackingRef.current = tracking
+  }, [tracking])
+
+  const releaseWakeLock = useCallback(async () => {
+    const lock = wakeLockRef.current
+    wakeLockRef.current = null
+    if (lock) {
+      try { await lock.release() } catch { /* abaikan jika sudah dilepas OS */ }
+    }
+    setWakeLockActive(false)
+  }, [])
+
+  const acquireWakeLock = useCallback(async () => {
+    if (!wakeLockSupported() || !trackingRef.current) return
+    if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
+    if (wakeLockRef.current && !wakeLockRef.current.released) {
+      setWakeLockActive(true)
+      return
+    }
+    try {
+      const sentinel = await navigator.wakeLock.request('screen')
+      wakeLockRef.current = sentinel
+      setWakeLockActive(true)
+      sentinel.addEventListener('release', () => {
+        if (wakeLockRef.current === sentinel) {
+          wakeLockRef.current = null
+          setWakeLockActive(false)
+        }
+      })
+    } catch {
+      // Browser/OS bisa menolak Wake Lock saat mode hemat daya ekstrem aktif.
+      setWakeLockActive(false)
+    }
+  }, [])
+
+  const handlePositionSuccess = useCallback((result) => {
+    const nextPos = {
+      lat: result.coords.latitude,
+      lng: result.coords.longitude,
+      accuracy: result.coords.accuracy,
+      heading: result.coords.heading,
+      speed: result.coords.speed,
+    }
+    setPosition(nextPos)
+    setLastUpdated(new Date())
+    // Disimpan/dikirim dengan throttle di service (≥15 detik atau ≥25 m).
+    recordDriverPosition(nextPos, userNameRef.current)
+    setPermission('granted')
+    setError('')
+  }, [])
+
   const clearWatch = useCallback(() => {
-    if (watchIdRef.current !== null) {
+    if (watchIdRef.current !== null && supported()) {
       navigator.geolocation.clearWatch(watchIdRef.current)
       watchIdRef.current = null
     }
@@ -42,66 +121,112 @@ export function GpsProvider({ children }) {
 
   const stop = useCallback(() => {
     clearWatch()
-    try { sessionStorage.removeItem(STORAGE_KEY) } catch { /* abaikan */ }
+    trackingRef.current = false
+    releaseWakeLock()
+    writeSavedTrackingUser(null)
     setTracking(false)
     setPosition(null)
     setLastUpdated(null)
     setError('')
-  }, [clearWatch])
+  }, [clearWatch, releaseWakeLock])
+
+  const bindWatch = useCallback(() => {
+    if (!supported()) return
+    clearWatch()
+    watchIdRef.current = navigator.geolocation.watchPosition(
+      handlePositionSuccess,
+      (err) => {
+        setError(ERROR_MESSAGES[err.code] ?? 'Terjadi masalah saat membaca GPS.')
+        if (err.code === 1) {
+          setPermission('denied')
+          clearWatch()
+          trackingRef.current = false
+          releaseWakeLock()
+          writeSavedTrackingUser(null)
+          setTracking(false)
+        }
+      },
+      WATCH_OPTIONS,
+    )
+  }, [clearWatch, handlePositionSuccess, releaseWakeLock])
 
   const start = useCallback(() => {
-    if (watchIdRef.current !== null) return // sudah berjalan
+    if (watchIdRef.current !== null) return
     setError('')
     if (!supported()) {
       setError('Browser ini tidak mendukung GPS/geolocation.')
       return
     }
+    trackingRef.current = true
     setTracking(true)
-    watchIdRef.current = navigator.geolocation.watchPosition(
-      (result) => {
-        setPosition({
-          lat: result.coords.latitude,
-          lng: result.coords.longitude,
-          accuracy: result.coords.accuracy,
-          heading: result.coords.heading,
-          speed: result.coords.speed,
-        })
-        setLastUpdated(new Date())
-        // Disimpan/dikirim dengan throttle di service (≥15 detik atau ≥25 m), bukan setiap update GPS.
-        recordDriverPosition({ lat: result.coords.latitude, lng: result.coords.longitude, accuracy: result.coords.accuracy, heading: result.coords.heading, speed: result.coords.speed }, userNameRef.current)
-        setPermission('granted')
-        setError('')
-      },
-      (err) => {
-        setError(ERROR_MESSAGES[err.code] ?? 'Terjadi masalah saat membaca GPS.')
-        if (err.code === 1) {
-          // Izin ditolak: pelacakan tidak bisa dilanjutkan.
-          setPermission('denied')
-          clearWatch()
-          setTracking(false)
-          try { sessionStorage.removeItem(STORAGE_KEY) } catch { /* abaikan */ }
-        }
-        // Kode 2/3 bersifat sementara: watch tetap jalan dan pulih sendiri saat sinyal kembali.
-      },
-      WATCH_OPTIONS,
-    )
-    try { sessionStorage.setItem(STORAGE_KEY, userId ?? '1') } catch { /* abaikan */ }
-  }, [clearWatch, userId])
+    bindWatch()
+    acquireWakeLock()
+    writeSavedTrackingUser(userId ?? '1')
+  }, [acquireWakeLock, bindWatch, userId])
+
+  // Saat layar HP Android menyala kembali (visibilitychange -> visible),
+  // aktifkan ulang Screen Wake Lock, hidupkan ulang watchPosition yang sempat di-pause OS,
+  // dan langsung ambil 1 titik GPS terbaru saat itu juga.
+  useEffect(() => {
+    if (!tracking || typeof document === 'undefined') return undefined
+
+    const handleResume = () => {
+      if (document.visibilityState !== 'visible' || !trackingRef.current) return
+      acquireWakeLock()
+      bindWatch()
+      if (supported()) {
+        navigator.geolocation.getCurrentPosition(
+          handlePositionSuccess,
+          () => {},
+          WATCH_OPTIONS,
+        )
+      }
+      if (typeof navigator !== 'undefined' && navigator.onLine) {
+        syncPendingLocations().catch(() => {})
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleResume)
+    window.addEventListener('pageshow', handleResume)
+    window.addEventListener('focus', handleResume)
+    return () => {
+      document.removeEventListener('visibilitychange', handleResume)
+      window.removeEventListener('pageshow', handleResume)
+      window.removeEventListener('focus', handleResume)
+    }
+  }, [tracking, acquireWakeLock, bindWatch, handlePositionSuccess])
 
   // Catat gangguan koneksi dan sinkronisasi antrean saat koneksi kembali.
   useEffect(() => {
     if (!userId) return undefined
     const onOffline = () => {
       queueLastPositionForOffline()
-      addDriverEvent({ type: 'offline', title: 'Driver kehilangan koneksi internet', body: `${user?.name ?? 'Driver'} terdeteksi offline. Lokasi terakhir disimpan lokal; admin di perangkat lain belum menerima data ini tanpa backend.`, position: getLastDriverPosition(), driverName: user?.name ?? 'Driver' })
+      addDriverEvent({
+        type: 'offline',
+        title: 'Driver kehilangan koneksi internet',
+        body: `${user?.name ?? 'Driver'} terdeteksi offline. Lokasi terakhir disimpan dan akan disinkronkan saat koneksi kembali.`,
+        position: getLastDriverPosition(),
+        driverName: user?.name ?? 'Driver',
+      })
     }
     const onOnline = async () => {
       const count = await syncPendingLocations()
-      if (count) addDriverEvent({ type: 'connection_restored', title: 'Koneksi internet pulih', body: `${user?.name ?? 'Driver'} kembali online. ${count} posisi tertunda telah diproses.`, position: getLastDriverPosition(), driverName: user?.name ?? 'Driver' })
+      if (count) {
+        addDriverEvent({
+          type: 'connection_restored',
+          title: 'Koneksi internet pulih',
+          body: `${user?.name ?? 'Driver'} kembali online. ${count} posisi tertunda telah dikirim.`,
+          position: getLastDriverPosition(),
+          driverName: user?.name ?? 'Driver',
+        })
+      }
     }
     window.addEventListener('offline', onOffline)
     window.addEventListener('online', onOnline)
-    return () => { window.removeEventListener('offline', onOffline); window.removeEventListener('online', onOnline) }
+    return () => {
+      window.removeEventListener('offline', onOffline)
+      window.removeEventListener('online', onOnline)
+    }
   }, [userId, user?.name])
 
   // Pantau status izin lokasi dari browser.
@@ -124,8 +249,7 @@ export function GpsProvider({ children }) {
   // Lanjutkan otomatis setelah refresh halaman bila tadi sedang melacak dan izin sudah diberikan.
   useEffect(() => {
     if (!userId || !navigator.permissions?.query) return undefined
-    let saved = null
-    try { saved = sessionStorage.getItem(STORAGE_KEY) } catch { /* abaikan */ }
+    const saved = readSavedTrackingUser()
     if (saved !== userId) return undefined
     let cancelled = false
     navigator.permissions.query({ name: 'geolocation' }).then((r) => {
@@ -141,12 +265,15 @@ export function GpsProvider({ children }) {
     prevUserId.current = userId
   }, [userId, stop])
 
-  // Bersihkan watcher hanya ketika aplikasi benar-benar ditutup (bukan saat pindah halaman).
-  useEffect(() => clearWatch, [clearWatch])
+  // Bersihkan watcher dan wake lock ketika aplikasi ditutup.
+  useEffect(() => () => {
+    clearWatch()
+    releaseWakeLock()
+  }, [clearWatch, releaseWakeLock])
 
   const value = useMemo(
-    () => ({ tracking, position, lastUpdated, error, permission, start, stop }),
-    [tracking, position, lastUpdated, error, permission, start, stop],
+    () => ({ tracking, wakeLockActive, position, lastUpdated, error, permission, start, stop }),
+    [tracking, wakeLockActive, position, lastUpdated, error, permission, start, stop],
   )
   return <GpsContext.Provider value={value}>{children}</GpsContext.Provider>
 }

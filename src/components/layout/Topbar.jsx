@@ -6,7 +6,6 @@ import { useOnlineStatus } from '@/hooks/useOnlineStatus'
 import { useOutboxCount } from '@/hooks/useOutboxCount'
 import { useUnreadCount } from '@/hooks/useNotifications'
 import { MENUS, ROLE_LABEL } from '@/lib/constants'
-import { USE_MOCK } from '@/services/api'
 import { Badge } from '@/components/ui/Badge'
 
 export default function Topbar({ onMenu }) {
@@ -22,7 +21,6 @@ export default function Topbar({ onMenu }) {
       <button type="button" onClick={onMenu} className="rounded-lg p-2 text-ink-200 hover:bg-white/10 lg:hidden" aria-label="Buka menu">
         <Menu className="size-5" />
       </button>
-      {USE_MOCK && <Badge tone="amber">Mode simulasi: data dummy</Badge>}
       {user.role === 'driver' && tracking && (
         <Link to="/driver/navigation" aria-label="GPS real-time aktif, buka halaman navigasi">
           <Badge tone={position ? 'green' : 'amber'}>

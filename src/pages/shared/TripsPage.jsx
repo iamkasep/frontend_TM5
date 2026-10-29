@@ -14,7 +14,6 @@ import { vehicleService } from '@/services/vehicleService'
 import { vendorService } from '@/services/masterService'
 import { shipmentService } from '@/services/shipmentService'
 import { locationService } from '@/services/locationService'
-import { USE_MOCK } from '@/services/api'
 import { formatDateTime } from '@/lib/formatters'
 import { useAuth } from '@/hooks/useAuth'
 import { useAsync } from '@/hooks/useAsync'
@@ -56,12 +55,16 @@ const dtLocal = (value) => {
   if (!value) return ''
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return ''
-  // Format sesuai zona waktu lokal agar jam rencana tidak bergeser saat edit.
   const pad = (n) => String(n).padStart(2, '0')
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
-const normalizeVendorType = (value) => String(value || '').trim().toLowerCase()
+const isThirdPartyVendor = (vendor) => {
+  const vt = String(vendor?.vendorType ?? vendor?.type ?? '').trim().toUpperCase()
+  return vt === 'THIRD_PARTY' || vt === 'EXTERNAL'
+}
+
+const isEntityReady = (entity) => ['active', 'available'].includes(String(entity?.status ?? '').toLowerCase())
 
 export default function TripsPage() {
   const { user } = useAuth()
@@ -94,13 +97,13 @@ export default function TripsPage() {
     if (q) {
       list = list.filter((t) =>
         [
-          t.tripCode,
+          t.tripNumber || t.tripCode,
           t.id,
           t.origin,
           t.destination,
-          vendors.find((v) => v.id === t.vendorId)?.name,
-          drivers.find((d) => d.id === t.driverId)?.name,
-          vehicles.find((v) => v.id === t.vehicleId)?.plate,
+          vendors.find((v) => v.id === t.vendorId)?.vendorName,
+          drivers.find((d) => d.id === t.driverId)?.driverName,
+          vehicles.find((v) => v.id === t.vehicleId)?.plateNumber,
         ].some((v) => String(v || '').toLowerCase().includes(q)),
       )
     }
@@ -148,14 +151,11 @@ export default function TripsPage() {
       if (!form.originLocationId || !form.destinationLocationId || !originLocation || !destinationLocation) {
         throw new Error('Pilih lokasi asal dan tujuan dari Manajemen Koordinat.')
       }
-      if (selectedDriver && (selectedDriver.status !== 'available' || selectedDriver.vendorId !== selectedVendor.id)) {
-        throw new Error('Driver harus tersedia dan berasal dari vendor yang dipilih.')
+      if (selectedDriver && (!isEntityReady(selectedDriver) || selectedDriver.vendorId !== selectedVendor.id)) {
+        throw new Error('Driver harus aktif dan berasal dari vendor yang dipilih.')
       }
-      if (selectedVehicle && (selectedVehicle.status !== 'available' || selectedVehicle.vendorId !== selectedVendor.id)) {
-        throw new Error('Kendaraan harus tersedia dan berasal dari vendor yang dipilih.')
-      }
-      if ((selectedDriver && selectedDriver.status === 'inactive') || (selectedVehicle && selectedVehicle.status !== 'available')) {
-        throw new Error('Driver/kendaraan tidak tersedia.')
+      if (selectedVehicle && (!isEntityReady(selectedVehicle) || selectedVehicle.vendorId !== selectedVendor.id)) {
+        throw new Error('Kendaraan harus aktif dan berasal dari vendor yang dipilih.')
       }
       if (selectedDriver && selectedVehicle && selectedDriver.vendorId !== selectedVehicle.vendorId) {
         throw new Error('Driver dan kendaraan harus berasal dari vendor yang sama.')
@@ -196,14 +196,14 @@ export default function TripsPage() {
       }
       if (selectedDriver) {
         payload.driverId = selectedDriver.id
-        payload.driverName = selectedDriver.name
+        payload.driverName = selectedDriver.driverName || selectedDriver.name
       }
       if (selectedVehicle) {
         payload.vehicleId = selectedVehicle.id
-        payload.vehiclePlate = selectedVehicle.plate
+        payload.vehiclePlate = selectedVehicle.plateNumber || selectedVehicle.plate
       }
-      if (normalizeVendorType(selectedVendor.type) !== 'external' && (!selectedDriver || !selectedVehicle)) {
-        throw new Error('Untuk trip internal, driver dan kendaraan wajib dipilih. Trip eksternal boleh tanpa driver/kendaraan.')
+      if (!isThirdPartyVendor(selectedVendor) && (!selectedDriver || !selectedVehicle)) {
+        throw new Error('Untuk vendor Transporter / Courier, driver dan kendaraan wajib dipilih. Vendor Third Party boleh tanpa driver/kendaraan.')
       }
 
       const saved = editing ? await tripService.update(editing.id, payload) : await tripService.create(payload)
@@ -244,15 +244,9 @@ export default function TripsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Manajemen Trip"
-        description="Kelola perjalanan armada, jadwal, penugasan, dan daftar AWB dalam satu trip."
+        description="Kelola perjalanan armada, jadwal keberangkatan, penugasan driver, dan daftar AWB dalam satu trip."
         actions={<Button onClick={openCreate}><CirclePlus className="mr-2 size-4" /> Buat Trip</Button>}
       />
-
-      {USE_MOCK && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          Mode simulasi: perubahan trip tersimpan di browser ini. Data belum dikirim ke backend.
-        </div>
-      )}
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {stats.map((s) => (
@@ -274,7 +268,7 @@ export default function TripsPage() {
               className="pl-9"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Cari nomor trip, rute, vendor, driver, atau plat..."
+              placeholder="Cari nomor trip, rute, vendor, driver, atau nomor polisi..."
             />
           </div>
           <select
@@ -316,7 +310,7 @@ export default function TripsPage() {
                   <div>
                     <div className="flex items-center gap-2">
                       <ClipboardList className="size-4 text-route-600" />
-                      <p className="font-bold text-ink-900">{trip.tripCode}</p>
+                      <p className="font-bold text-ink-900">{trip.tripNumber || trip.tripCode}</p>
                     </div>
                     <p className="mt-1 text-xs text-ink-500">{trip.id}</p>
                   </div>
@@ -340,15 +334,15 @@ export default function TripsPage() {
                     <div className="flex items-center gap-2 text-sm">
                       <Truck className="size-4 text-ink-400" />
                       <span className="text-ink-500">Kendaraan</span>
-                      <span className="ml-auto font-medium">{vehicle?.plate || 'Belum ditentukan'}</span>
+                      <span className="ml-auto font-medium">{vehicle?.plateNumber || vehicle?.plate || 'Belum ditentukan'}</span>
                     </div>
                     <div className="flex items-center gap-2 text-sm">
                       <span className="text-ink-500">Driver</span>
-                      <span className="ml-auto font-medium">{driver?.name || 'Belum ditentukan'}</span>
+                      <span className="ml-auto font-medium">{driver?.driverName || driver?.name || 'Belum ditentukan'}</span>
                     </div>
                     <div className="text-sm">
                       <span className="text-ink-500">Vendor</span>
-                      <p className="mt-1 font-medium">{vendor?.name || '—'}</p>
+                      <p className="mt-1 font-medium">{vendor?.vendorName || vendor?.name || '—'}</p>
                     </div>
                     <div className="text-sm">
                       <span className="text-ink-500">AWB dalam trip</span>
@@ -396,6 +390,11 @@ export default function TripsPage() {
                       </Button>
                     </Link>
                     {trip.status === 'planned' && (
+                      <Button size="sm" variant="secondary" onClick={() => updateStatus(trip, 'loading')}>
+                        Loading
+                      </Button>
+                    )}
+                    {['planned', 'loading'].includes(trip.status) && (
                       <Button size="sm" onClick={() => updateStatus(trip, 'in_progress')}>
                         <Play className="mr-1 size-3.5" /> Mulai Perjalanan
                       </Button>
@@ -427,36 +426,36 @@ export default function TripsPage() {
                 <option value="">Pilih vendor</option>
                 {vendors.filter((v) => v.status === 'active').map((v) => (
                   <option key={v.id} value={v.id}>
-                    {v.name} ({v.type === 'internal' ? 'Internal' : 'External'})
+                    {v.vendorName || v.name} ({v.vendorType || v.type})
                   </option>
                 ))}
               </select>
             </label>
 
             <label className="block text-sm font-medium">
-              Driver (opsional untuk trip eksternal)
+              Driver (opsional untuk Third Party)
               <select
                 className="mt-1 w-full rounded-lg border border-ink-200 bg-white px-3 py-2"
                 value={form.driverId}
                 onChange={(e) => setForm({ ...form, driverId: e.target.value, vehicleId: '' })}
               >
                 <option value="">Tidak ditentukan</option>
-                {drivers.filter((d) => d.status === 'available' && d.vendorId === form.vendorId).map((d) => (
-                  <option key={d.id} value={d.id}>{d.name}</option>
+                {drivers.filter((d) => isEntityReady(d) && d.vendorId === form.vendorId).map((d) => (
+                  <option key={d.id} value={d.id}>{d.driverName || d.name}</option>
                 ))}
               </select>
             </label>
 
             <label className="block text-sm font-medium">
-              Kendaraan (opsional untuk trip eksternal)
+              Kendaraan (opsional untuk Third Party)
               <select
                 className="mt-1 w-full rounded-lg border border-ink-200 bg-white px-3 py-2"
                 value={form.vehicleId}
                 onChange={(e) => setForm({ ...form, vehicleId: e.target.value })}
               >
                 <option value="">Tidak ditentukan</option>
-                {vehicles.filter((v) => v.status === 'available' && v.vendorId === form.vendorId).map((v) => (
-                  <option key={v.id} value={v.id}>{v.plate} — {v.type}</option>
+                {vehicles.filter((v) => isEntityReady(v) && v.vendorId === form.vendorId).map((v) => (
+                  <option key={v.id} value={v.id}>{v.plateNumber || v.plate} — {v.vehicleType || v.type}</option>
                 ))}
               </select>
             </label>

@@ -1,9 +1,7 @@
-
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   MapContainer,
   Marker,
-  Polyline,
   Popup,
   useMap,
 } from 'react-leaflet'
@@ -11,54 +9,32 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import BaseMapLayer from './BaseMapLayer'
 import { MAP_MAX_ZOOM } from '@/lib/mapConfig'
-import { fetchRoadRoute } from '@/lib/routing'
 
-// Ikon marker tanpa file gambar tambahan.
-const icon = (kind, selected) =>
-  L.divIcon({
+// Simbol SVG untuk masing-masing jenis titik pada peta:
+// - origin: Gudang / titik keberangkatan
+// - vehicle: Truk armada / posisi driver
+// - destination: Pin jarum (pushpin) titik tujuan
+const PIN_SVGS = {
+  origin: `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21V8l9-5 9 5v13"/><path d="M13 13h4v8H7v-8h6Z"/><path d="M7 17h10"/></svg>`,
+  vehicle: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/></svg>`,
+  destination: `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg>`,
+}
+
+// Ikon marker dengan simbol SVG tanpa file gambar eksternal.
+const icon = (kind, selected) => {
+  const isVehicle = kind === 'vehicle'
+  const size = isVehicle ? 28 : 24
+  const anchor = isVehicle ? 14 : 12
+  const svg = PIN_SVGS[kind] || PIN_SVGS.destination
+  return L.divIcon({
     className: '',
     html: `<span class="tms-pin tms-pin-${kind}${
       selected ? ' tms-pin-selected' : ''
-    }"></span>`,
-    iconSize: kind === 'vehicle' ? [22, 22] : [18, 18],
-    iconAnchor: kind === 'vehicle' ? [11, 11] : [9, 9],
+    }">${svg}</span>`,
+    iconSize: [size, size],
+    iconAnchor: [anchor, anchor],
+    popupAnchor: [0, -anchor],
   })
-
-// Warna garis: perjalanan biasa (oranye) dan ruas yang berakhir di titik input manual (ungu).
-const ROUTE_COLOR = '#e5863c'
-const MANUAL_ROUTE_COLOR = '#7c3aed'
-
-// Satu ruas garis mengikuti jalan. Garis lurus tampil lebih dulu dan menjadi cadangan
-// bila layanan routing tidak dapat dijangkau.
-function RoadLine({ points, color }) {
-  const key = JSON.stringify(points)
-  const [snapped, setSnapped] = useState({ key: null, line: null })
-
-  useEffect(() => {
-    const controller = new AbortController()
-    fetchRoadRoute(JSON.parse(key), controller.signal)
-      .then((line) => { if (!controller.signal.aborted) setSnapped({ key, line }) })
-      .catch(() => { /* gagal/offline: tetap garis lurus */ })
-    return () => controller.abort()
-  }, [key])
-
-  const positions = snapped.key === key && snapped.line ? snapped.line : points
-  return <Polyline positions={positions} pathOptions={{ color, weight: 4 }} />
-}
-
-// Pecah rute menjadi ruas berurutan; ruas yang berakhir di titik bertanda 'manual'
-// ([lat, lng, 'manual']) diwarnai berbeda dari perjalanan biasa.
-function RoadRoute({ route }) {
-  const runs = []
-  for (let i = 1; i < route.length; i += 1) {
-    const manual = route[i][2] === 'manual'
-    const last = runs[runs.length - 1]
-    if (last && last.manual === manual) last.points.push(route[i])
-    else runs.push({ manual, points: [route[i - 1], route[i]] })
-  }
-  return runs.map((run, i) => (
-    <RoadLine key={i} points={run.points} color={run.manual ? MANUAL_ROUTE_COLOR : ROUTE_COLOR} />
-  ))
 }
 
 // Marker: klik memperbesar peta (zoom in) ke titik tersebut.
@@ -133,24 +109,20 @@ function InvalidateOnResize() {
  *   }
  * ]
  *
- * route: [[lat, lng, 'manual'?], ...] garis rute yang sudah ditempuh; titik ketiga 'manual' menandai input manual.
- * plan: [[lat, lng], ...] garis rute rencana.
+ * Peta hanya menampilkan titik koordinat pasti (Asal, Posisi Armada, dan Tujuan)
+ * tanpa garis penghubung rute karena jalur perjalanan aktual bersifat dinamis.
  */
 export default function TrackingMap({
   markers = [],
-  route,
-  plan,
   height = 360,
   onSelect,
   fitKey = 'default',
 }) {
   const points = useMemo(
     () => markers.map((marker) => marker.position),
-    [markers]
+    [markers],
   )
 
-  // Peta abu-abu = basemap gagal dimuat. Tampilkan pesan agar penyebabnya
-  // terlihat. BaseMapLayer hanya melapor 'failed' jika vektor DAN cadangan gagal.
   const [baseStatus, setBaseStatus] = useState('loading')
   const notice =
     baseStatus === 'failed'
@@ -176,19 +148,6 @@ export default function TrackingMap({
       >
         <BaseMapLayer onStatus={setBaseStatus} />
 
-        {plan && (
-          <Polyline
-            positions={plan}
-            pathOptions={{
-              color: '#7389a1',
-              weight: 3,
-              dashArray: '6 8',
-            }}
-          />
-        )}
-
-        {route && route.length > 1 && <RoadRoute route={route} />}
-
         {markers.map((marker) => (
           <PinMarker key={marker.id} marker={marker} onSelect={onSelect} />
         ))}
@@ -197,10 +156,26 @@ export default function TrackingMap({
         <InvalidateOnResize />
       </MapContainer>
 
+      {/* Legenda simbol pin peta */}
+      <div className="pointer-events-none absolute bottom-2.5 left-2.5 z-[900] flex flex-wrap items-center gap-2.5 rounded-md bg-white/90 px-2.5 py-1 text-[11px] font-medium text-ink-800 shadow-sm ring-1 ring-ink-200 backdrop-blur">
+        <span className="inline-flex items-center gap-1">
+          <span className="inline-block size-2 rounded-full bg-ink-800" />
+          Asal
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="inline-block size-2 rounded-full bg-route-500" />
+          Posisi driver
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="inline-block size-2 rounded-full bg-emerald-600" />
+          Tujuan
+        </span>
+      </div>
+
       {notice && (
         <div
           role="alert"
-          className="pointer-events-none absolute bottom-9 left-3 right-3 z-[1000] rounded-lg bg-signal-100 px-3 py-2 text-xs font-medium text-ink-900 ring-1 ring-signal-400"
+          className="pointer-events-none absolute bottom-12 left-3 right-3 z-[1000] rounded-lg bg-signal-100 px-3 py-2 text-xs font-medium text-ink-900 ring-1 ring-signal-400"
         >
           {notice}
         </div>

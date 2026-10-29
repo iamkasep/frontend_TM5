@@ -10,7 +10,7 @@ import { useAsync } from '@/hooks/useAsync'
 import { useScope } from '@/hooks/useAuth'
 import { shipmentService } from '@/services/shipmentService'
 import { driverService } from '@/services/driverService'
-import { USE_MOCK, mockNote } from '@/services/api'
+import { mockNote } from '@/services/api'
 import { formatDate, formatWeight } from '@/lib/formatters'
 import { cn } from '@/lib/utils'
 
@@ -33,7 +33,10 @@ export default function AssignDriverPage() {
   const toast = useToast()
   const { data, loading, error, reload } = useAsync(async () => {
     const [shipments, drivers] = await Promise.all([shipmentService.list(scope), driverService.list()])
-    return { shipments: shipments.filter((s) => s.status === 'pending'), drivers: drivers.filter((d) => d.status === 'available' || d.id === scope.driverId || d.id === 'DRV-001') }
+    return {
+      shipments: shipments.filter((s) => s.status === 'pending'),
+      drivers: drivers.filter((d) => ['active', 'available'].includes(String(d.status).toLowerCase()) || d.id === scope.driverId || d.id === 'DRV-001'),
+    }
   }, [scope.role])
   const [shipmentId, setShipmentId] = useState(null)
   const [driverId, setDriverId] = useState(null)
@@ -47,8 +50,7 @@ export default function AssignDriverPage() {
     setBusy(true)
     try {
       await shipmentService.assignDriver(shipment.id, driver)
-      if (USE_MOCK) await driverService.update(driver.id, { status: 'on_duty' })
-      toast.success(`${driver.name} ditugaskan ke ${shipment.trackingNumber}${mockNote}`)
+      toast.success(`${driver.driverName || driver.name} ditugaskan ke ${shipment.trackingNumber}${mockNote}`)
       setConfirm(false); setShipmentId(null); setDriverId(null)
       reload()
     } catch (e) {

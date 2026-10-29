@@ -1,16 +1,24 @@
 import { useMemo, useState } from 'react'
-import { Camera, MapPin, RefreshCw, Search, PackageCheck, CalendarClock, UserRound, ExternalLink, ImageOff } from 'lucide-react'
+import { Camera, MapPin, RefreshCw, Search, PackageCheck, CalendarClock, UserRound, ExternalLink, ImageOff, Clock } from 'lucide-react'
 import PageHeader from '@/components/layout/PageHeader'
 import Button from '@/components/ui/Button'
 import { AsyncBoundary } from '@/components/ui/States'
 import { useAsync } from '@/hooks/useAsync'
 import { podService } from '@/services/podService'
-import { USE_MOCK } from '@/services/api'
 
 function formatDate(value) {
   if (!value) return '—'
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString('id-ID')
+}
+
+function formatRemainingTtl(item) {
+  if (item.photoExpired) return 'File foto dihapus (>24 jam)'
+  if (item.photoRemainingMs == null) return 'Aktif (1×24 jam)'
+  const totalMinutes = Math.max(1, Math.floor(item.photoRemainingMs / 60000))
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  return hours > 0 ? `Auto-hapus: ${hours}j ${minutes}m lagi` : `Auto-hapus: ${minutes}m lagi`
 }
 
 export default function ProofOfDeliveryPage() {
@@ -38,7 +46,7 @@ export default function ProofOfDeliveryPage() {
       <div className="space-y-6">
         <PageHeader
           title="Bukti Serah Terima"
-          description={USE_MOCK ? 'Lihat foto bukti pengiriman yang disimpan oleh driver pada browser ini.' : 'Daftar foto bukti serah terima pengiriman dari driver.'}
+          description="Daftar foto bukti serah terima pengiriman (POD) dari driver. File foto otomatis dihapus setelah 1×24 jam untuk menghemat penyimpanan, sedangkan riwayat waktu dan koordinat GPS tetap tersimpan."
           actions={<Button variant="secondary" onClick={reload}><RefreshCw className="size-4" /> Muat ulang</Button>}
         />
 
@@ -46,24 +54,24 @@ export default function ProofOfDeliveryPage() {
           <div className="rounded-2xl border border-slate-200 bg-white p-5">
             <div className="flex items-center gap-3 text-slate-500">
               <PackageCheck className="size-5" />
-              <span className="text-sm">Total bukti tersimpan</span>
+              <span className="text-sm">Total catatan POD</span>
             </div>
             <p className="mt-3 text-3xl font-bold text-slate-900">{proofs.length}</p>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-5">
             <div className="flex items-center gap-3 text-slate-500">
               <Camera className="size-5" />
-              <span className="text-sm">Bukti dengan foto</span>
+              <span className="text-sm">Foto aktif (&lt; 24 jam)</span>
             </div>
             <p className="mt-3 text-3xl font-bold text-slate-900">{proofs.filter((item) => item.imageDataUrl).length}</p>
           </div>
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
-            <div className="flex items-center gap-3 text-amber-800">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5">
+            <div className="flex items-center gap-3 text-slate-500">
               <MapPin className="size-5" />
-              <span className="text-sm">Catatan penyimpanan</span>
+              <span className="text-sm">Dengan koordinat GPS</span>
             </div>
-            <p className="mt-2 text-sm leading-6 text-amber-900">
-              {USE_MOCK ? 'Data demo tersimpan di localStorage browser ini, bukan server pusat.' : 'Data bukti serah terima diambil langsung dari server.'}
+            <p className="mt-3 text-3xl font-bold text-slate-900">
+              {proofs.filter((item) => Number.isFinite(item.latitude) && Number.isFinite(item.longitude)).length}
             </p>
           </div>
         </div>
@@ -97,13 +105,14 @@ export default function ProofOfDeliveryPage() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[760px] text-left text-sm">
+              <table className="w-full min-w-[820px] text-left text-sm">
                 <thead>
                   <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
                     <th className="px-3 py-3">Foto</th>
                     <th className="px-3 py-3">Pengiriman / AWB</th>
                     <th className="px-3 py-3">Driver</th>
                     <th className="px-3 py-3">Waktu submit</th>
+                    <th className="px-3 py-3">Retensi Foto (1×24 Jam)</th>
                     <th className="px-3 py-3">Lokasi GPS</th>
                     <th className="px-3 py-3">Aksi</th>
                   </tr>
@@ -115,7 +124,7 @@ export default function ProofOfDeliveryPage() {
                         {item.imageDataUrl ? (
                           <img src={item.imageDataUrl} alt={`Bukti ${item.awb || item.shipmentId}`} className="size-16 rounded-lg border border-slate-200 object-cover" />
                         ) : (
-                          <div className="grid size-16 place-items-center rounded-lg bg-slate-100">
+                          <div className="grid size-16 place-items-center rounded-lg bg-slate-100 text-center" title={item.photoExpired ? 'File foto telah dihapus otomatis setelah 1×24 jam' : 'Foto tidak tersedia'}>
                             <ImageOff className="size-5 text-slate-400" />
                           </div>
                         )}
@@ -135,6 +144,12 @@ export default function ProofOfDeliveryPage() {
                           <CalendarClock className="size-4 shrink-0" />
                           <span>{formatDate(item.submittedAt)}</span>
                         </div>
+                      </td>
+                      <td className="px-3 py-3">
+                        <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${item.photoExpired ? 'bg-slate-100 text-slate-600' : 'bg-blue-50 text-blue-700'}`}>
+                          <Clock className="size-3.5" />
+                          {formatRemainingTtl(item)}
+                        </span>
                       </td>
                       <td className="px-3 py-3">
                         {Number.isFinite(item.latitude) && Number.isFinite(item.longitude) ? (
@@ -189,7 +204,15 @@ export default function ProofOfDeliveryPage() {
                   {selected.imageDataUrl ? (
                     <img src={selected.imageDataUrl} alt="Foto bukti serah terima lengkap" className="max-h-[60vh] w-full rounded-xl border border-slate-200 bg-slate-50 object-contain" />
                   ) : (
-                    <p className="rounded-xl bg-slate-100 p-8 text-center text-slate-500">Foto tidak tersedia.</p>
+                    <div className="rounded-xl bg-slate-100 p-8 text-center text-slate-500">
+                      <ImageOff className="mx-auto mb-2 size-8 text-slate-400" />
+                      <p className="font-medium text-slate-700">
+                        {selected.photoExpired ? 'File foto telah dihapus otomatis (melewati 1×24 jam)' : 'Foto tidak tersedia.'}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Data waktu serah terima dan titik koordinat GPS tetap tersimpan sebagai arsip transaksi.
+                      </p>
+                    </div>
                   )}
                 </div>
                 <div className="space-y-4 text-sm">
@@ -198,6 +221,10 @@ export default function ProofOfDeliveryPage() {
                   <div><p className="text-slate-500">Driver</p><p className="mt-1 font-semibold text-slate-900">{selected.driverName || '—'}</p></div>
                   <div><p className="text-slate-500">Waktu foto</p><p className="mt-1 font-medium text-slate-900">{formatDate(selected.capturedAt)}</p></div>
                   <div><p className="text-slate-500">Waktu submit</p><p className="mt-1 font-medium text-slate-900">{formatDate(selected.submittedAt)}</p></div>
+                  <div>
+                    <p className="text-slate-500">Retensi file foto (1×24 jam)</p>
+                    <p className="mt-1 font-medium text-slate-900">{formatRemainingTtl(selected)}</p>
+                  </div>
                   <div>
                     <p className="text-slate-500">Koordinat</p>
                     <p className="mt-1 font-medium text-slate-900">
@@ -215,13 +242,15 @@ export default function ProofOfDeliveryPage() {
                   <div>
                     <p className="text-slate-500">Ukuran foto</p>
                     <p className="mt-1 font-medium text-slate-900">
-                      {Math.round((selected.originalBytes || 0) / 1024)} KB → {Math.round((selected.compressedBytes || 0) / 1024)} KB
+                      {selected.photoExpired
+                        ? '0 KB (file foto sudah dihapus)'
+                        : `${Math.round((selected.originalBytes || 0) / 1024)} KB → ${Math.round((selected.compressedBytes || 0) / 1024)} KB`}
                     </p>
                   </div>
                   <div>
                     <p className="text-slate-500">Status bukti</p>
                     <span className="mt-1 inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
-                      {selected.status || 'Tersimpan lokal'}
+                      {selected.status || 'Terverifikasi'}
                     </span>
                   </div>
                 </div>

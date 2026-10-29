@@ -13,8 +13,14 @@ const statusCol = {
 }
 
 const opts = (list) => list.map(([value, label]) => ({ value, label }))
-const vendorOptions = async () => (await vendorService.list()).map((v) => ({ value: v.id, label: v.name }))
+const vendorOptions = async () => (await vendorService.list()).map((v) => ({ value: v.id, label: v.vendorName || v.name }))
 const activeInactiveOpts = opts([['active', 'Aktif'], ['inactive', 'Nonaktif']])
+
+const VENDOR_TYPE_LABEL = {
+  TRANSPORTER: 'Transporter',
+  COURIER: 'Courier',
+  THIRD_PARTY: 'Third Party',
+}
 
 export const ENTITY_CONFIGS = {
   companies: {
@@ -94,59 +100,73 @@ export const ENTITY_CONFIGS = {
   drivers: {
     title: 'Manajemen Driver',
     singular: 'driver',
-    description: 'Kelola data driver dan ketersediaannya.',
+    description: 'Kelola data driver operasional (dm_drivers).',
     service: driverService,
     columns: [
       { key: 'driverCode', header: 'Kode driver', sortable: true },
-      { key: 'name', header: 'Nama', sortable: true },
-      { key: 'phone', header: 'Telepon' },
-      { key: 'vendorName', header: 'Vendor', sortable: true },
+      { key: 'driverName', header: 'Nama driver', sortable: true, render: (r) => r.driverName || r.name },
+      { key: 'phoneNumber', header: 'Nomor HP (SMS)', render: (r) => r.phoneNumber || r.phone },
+      { key: 'vendorName', header: 'Vendor terkait', sortable: true },
       statusCol,
     ],
     fields: [
       { name: 'driverCode', label: 'Kode driver', required: true },
-      { name: 'name', label: 'Nama', required: true },
-      { name: 'phone', label: 'Telepon', type: 'tel', required: true },
-      { name: 'licenseNumber', label: 'Nomor SIM', required: true },
-      { name: 'vendorId', label: 'Vendor', type: 'select', required: true, loadOptions: vendorOptions, labelKey: 'vendorName' },
-      { name: 'status', label: 'Status', type: 'select', required: true, options: opts([['available', 'Tersedia'], ['on_duty', 'Bertugas'], ['off', 'Libur']]) },
+      { name: 'driverName', label: 'Nama driver', required: true },
+      { name: 'phoneNumber', label: 'Nomor HP untuk SMS', type: 'tel', required: true },
+      { name: 'vendorId', label: 'Vendor terkait', type: 'select', required: true, loadOptions: vendorOptions, labelKey: 'vendorName' },
+      { name: 'status', label: 'Status', type: 'select', required: true, options: activeInactiveOpts },
     ],
-    searchKeys: ['driverCode', 'name', 'vendorName'],
-    filters: [{ key: 'status', label: 'Status', options: opts([['available', 'Tersedia'], ['on_duty', 'Bertugas'], ['off', 'Libur']]) }],
-    defaults: { status: 'available' },
+    searchKeys: ['driverCode', 'driverName', 'name', 'phoneNumber', 'vendorName'],
+    filters: [{ key: 'status', label: 'Status', options: activeInactiveOpts }],
+    defaults: { status: 'active' },
   },
 
   vendors: {
     title: 'Manajemen Vendor',
     singular: 'vendor',
-    description: 'Mitra penyedia armada.',
+    description: 'Mitra penyedia armada dan ekspedisi (dm_vendors).',
     service: vendorService,
     columns: [
       { key: 'vendorCode', header: 'Kode vendor', sortable: true },
-      { key: 'name', header: 'Vendor', sortable: true },
-      { key: 'type', header: 'Jenis', render: (r) => (r.type === 'internal' ? 'Internal' : 'External') },
-      { key: 'contactPerson', header: 'Kontak' },
-      { key: 'phone', header: 'Telepon' },
+      { key: 'vendorName', header: 'Nama vendor', sortable: true, render: (r) => r.vendorName || r.name },
+      {
+        key: 'vendorType',
+        header: 'Jenis vendor',
+        render: (r) => VENDOR_TYPE_LABEL[r.vendorType || r.type] || r.vendorType || r.type,
+      },
+      { key: 'contactPerson', header: 'PIC vendor' },
+      { key: 'phoneNumber', header: 'Telepon', render: (r) => r.phoneNumber || r.phone },
       { key: 'city', header: 'Kota', sortable: true },
       statusCol,
     ],
     fields: [
       { name: 'vendorCode', label: 'Kode vendor', required: true },
-      { name: 'name', label: 'Nama vendor', required: true },
-      { name: 'type', label: 'Jenis vendor', type: 'select', required: true, options: opts([['internal', 'Internal'], ['external', 'External']]) },
-      { name: 'contactPerson', label: 'Nama kontak', required: true },
-      { name: 'phone', label: 'Telepon', type: 'tel', required: true },
-      { name: 'email', label: 'Email', type: 'email' },
+      { name: 'vendorName', label: 'Nama resmi vendor', required: true },
+      {
+        name: 'vendorType',
+        label: 'Jenis vendor',
+        type: 'select',
+        required: true,
+        options: opts([
+          ['TRANSPORTER', 'TRANSPORTER'],
+          ['COURIER', 'COURIER'],
+          ['THIRD_PARTY', 'THIRD_PARTY'],
+        ]),
+      },
       { name: 'npwp', label: 'NPWP' },
-      { name: 'address', label: 'Alamat' },
-      { name: 'city', label: 'Kota', required: true },
-      { name: 'province', label: 'Provinsi' },
+      { name: 'contactPerson', label: 'Nama PIC vendor', required: true },
+      { name: 'phoneNumber', label: 'Nomor telepon vendor', type: 'tel', required: true },
+      { name: 'email', label: 'Email kontak vendor', type: 'email' },
+      { name: 'address', label: 'Alamat kantor vendor' },
+      { name: 'city', label: 'Kota vendor', required: true },
+      { name: 'province', label: 'Provinsi vendor' },
       { name: 'postalCode', label: 'Kode pos' },
-      { name: 'status', label: 'Status', type: 'select', required: true, options: activeInactiveOpts },
+      { name: 'status', label: 'Status aktif (is_active)', type: 'select', required: true, options: activeInactiveOpts },
+      { name: 'remarks', label: 'Catatan tambahan (remarks)' },
     ],
-    searchKeys: ['vendorCode', 'name', 'contactPerson', 'city'],
+    searchKeys: ['vendorCode', 'vendorName', 'name', 'contactPerson', 'city', 'vendorType'],
     filters: [{ key: 'status', label: 'Status', options: activeInactiveOpts }],
-    defaults: { status: 'active', type: 'external' },
+    defaults: { status: 'active', vendorType: 'TRANSPORTER' },
   },
 
   locations: {
@@ -193,16 +213,16 @@ export const ENTITY_CONFIGS = {
   vehicles: {
     title: 'Manajemen Kendaraan',
     singular: 'kendaraan',
-    description: 'Armada beserta kapasitas dan statusnya.',
+    description: 'Armada beserta kapasitas dan status operasionalnya (dm_vehicles).',
     service: vehicleService,
     columns: [
       {
-        key: 'plate',
-        header: 'Plat nomor',
+        key: 'plateNumber',
+        header: 'Nomor polisi',
         sortable: true,
-        render: (r) => <span className="font-mono text-[13px] font-medium text-ink-900">{r.plate}</span>,
+        render: (r) => <span className="font-mono text-[13px] font-medium text-ink-900">{r.plateNumber || r.plate}</span>,
       },
-      { key: 'type', header: 'Jenis', sortable: true },
+      { key: 'vehicleType', header: 'Jenis kendaraan', sortable: true, render: (r) => r.vehicleType || r.type },
       {
         key: 'capacityKg',
         header: 'Kapasitas berat',
@@ -212,16 +232,16 @@ export const ENTITY_CONFIGS = {
       {
         key: 'capacityM3',
         header: 'Kapasitas volume',
-        render: (r) => (r.capacityM3 == null ? '—' : `${formatNumber(r.capacityM3)} m³`),
+        render: (r) => (r.capacityM3 == null || r.capacityM3 === '' ? '—' : `${formatNumber(r.capacityM3)} m³`),
       },
-      { key: 'vendorName', header: 'Vendor' },
+      { key: 'vendorName', header: 'Pemilik / Vendor' },
       statusCol,
     ],
     fields: [
-      { name: 'plate', label: 'Plat nomor', required: true },
+      { name: 'plateNumber', label: 'Nomor polisi (plate_number)', required: true },
       {
-        name: 'type',
-        label: 'Jenis',
+        name: 'vehicleType',
+        label: 'Jenis kendaraan (vehicle_type)',
         type: 'select',
         required: true,
         options: opts([
@@ -230,21 +250,22 @@ export const ENTITY_CONFIGS = {
           ['CDD', 'CDD'],
           ['Fuso', 'Fuso'],
           ['Wingbox', 'Wingbox'],
+          ['Tronton', 'Tronton'],
         ]),
       },
       { name: 'capacityKg', label: 'Kapasitas berat (kg)', type: 'number', min: 1, required: true },
       { name: 'capacityM3', label: 'Kapasitas volume (m³)', type: 'number', min: 0 },
-      { name: 'vendorId', label: 'Vendor', type: 'select', required: true, loadOptions: vendorOptions, labelKey: 'vendorName' },
+      { name: 'vendorId', label: 'Pemilik / Vendor', type: 'select', required: true, loadOptions: vendorOptions, labelKey: 'vendorName' },
       {
         name: 'status',
         label: 'Status',
         type: 'select',
         required: true,
-        options: opts([['available', 'Tersedia'], ['in_use', 'Dipakai'], ['maintenance', 'Perawatan']]),
+        options: opts([['active', 'Aktif'], ['maintenance', 'Perawatan'], ['inactive', 'Nonaktif']]),
       },
     ],
-    searchKeys: ['plate', 'type', 'vendorName'],
-    filters: [{ key: 'status', label: 'Status', options: opts([['available', 'Tersedia'], ['in_use', 'Dipakai'], ['maintenance', 'Perawatan']]) }],
-    defaults: { status: 'available' },
+    searchKeys: ['plateNumber', 'plate', 'vehicleType', 'type', 'vendorName'],
+    filters: [{ key: 'status', label: 'Status', options: opts([['active', 'Aktif'], ['maintenance', 'Perawatan'], ['inactive', 'Nonaktif']]) }],
+    defaults: { status: 'active' },
   },
 }

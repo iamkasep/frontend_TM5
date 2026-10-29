@@ -9,7 +9,6 @@ import TrackingMap from '@/components/sections/tracking/TrackingMap'
 import { useAsync } from '@/hooks/useAsync'
 import { useAuth, useScope } from '@/hooks/useAuth'
 import { trackingService } from '@/services/trackingService'
-import { USE_MOCK } from '@/services/api'
 import { formatRelative } from '@/lib/formatters'
 import { cn } from '@/lib/utils'
 
@@ -46,12 +45,12 @@ export default function TrackingMonitorPage() {
         <div className="grid gap-5 lg:grid-cols-[1fr_340px]">
           <div>
             <TrackingMap
-              markers={markers} height={520} fitKey={selectedId ?? 'all'}
-              plan={selected ? [[selected.origin.lat, selected.origin.lng], [selected.destination.lat, selected.destination.lng]] : undefined}
-              route={selected ? selected.history.map((h) => [h.lat, h.lng, h.source === 'admin_manual' ? 'manual' : undefined]) : undefined}
+              markers={markers}
+              height={520}
+              fitKey={selectedId ?? 'all'}
               onSelect={(m) => m.kind === 'vehicle' && setSelectedId(m.id)}
             />
-            {USE_MOCK && <p className="mt-2 text-xs text-ink-500">Posisi kendaraan memakai koordinat manual dari SMS bila ada; selain itu simulasi dari progres pengiriman, bukan GPS nyata.</p>}
+            <p className="mt-2 text-xs text-ink-500">Posisi kendaraan menampilkan koordinat pelacakan terakhir dari GPS, SMS, atau progres perjalanan.</p>
           </div>
 
           <Card className="flex max-h-[520px] flex-col">

@@ -10,10 +10,10 @@ export function Loading({ label = 'Memuat data...' }) {
   )
 }
 
-export function EmptyState({ title = 'Belum ada data', description, action }) {
+export function EmptyState({ title = 'Belum ada data', description, action, icon: Icon = Inbox }) {
   return (
     <div className="flex flex-col items-center px-4 py-14 text-center">
-      <span className="grid size-12 place-items-center rounded-full bg-ink-100 text-ink-400"><Inbox className="size-6" /></span>
+      <span className="grid size-12 place-items-center rounded-full bg-ink-100 text-ink-400"><Icon className="size-6" /></span>
       <h3 className="mt-3 text-sm font-bold text-ink-800">{title}</h3>
       {description && <p className="mt-1 max-w-sm text-sm text-ink-500">{description}</p>}
       {action && <div className="mt-4">{action}</div>}

@@ -46,16 +46,37 @@ body {
   outline-offset: 2px;
 }
 
-/* Penanda peta (Leaflet divIcon) */
-.tms-pin { display: block; width: 18px; height: 18px; border-radius: 9999px; border: 3px solid #fff; box-shadow: 0 1px 4px rgba(10, 21, 32, 0.45); }
-.tms-pin-origin { background: var(--color-ink-700); }
-.tms-pin-destination { background: var(--color-teal-600); border-radius: 4px; transform: rotate(45deg); }
-.tms-pin-vehicle { background: var(--color-route-500); width: 22px; height: 22px; animation: tms-pulse 2.4s ease-out infinite; }
-.tms-pin-selected { outline: 3px solid rgba(229, 134, 60, 0.4); }
+/* Penanda peta (Leaflet divIcon dengan simbol SVG) */
+.tms-pin {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 9999px;
+  border: 2px solid #fff;
+  color: #fff;
+  box-shadow: 0 2px 5px rgba(10, 21, 32, 0.35);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.tms-pin:hover { transform: scale(1.1); }
+.tms-pin-origin { background: var(--color-ink-800); }
+.tms-pin-destination { background: #059669; }
+.tms-pin-vehicle {
+  background: var(--color-route-500);
+  width: 28px;
+  height: 28px;
+  border-width: 2px;
+  animation: tms-pulse 2.4s ease-out infinite;
+}
+.tms-pin-selected {
+  outline: 3px solid rgba(229, 134, 60, 0.45);
+  transform: scale(1.1);
+}
 @keyframes tms-pulse {
-  0% { box-shadow: 0 0 0 0 rgba(229, 134, 60, 0.5), 0 1px 4px rgba(10, 21, 32, 0.45); }
-  70% { box-shadow: 0 0 0 10px rgba(229, 134, 60, 0), 0 1px 4px rgba(10, 21, 32, 0.45); }
-  100% { box-shadow: 0 0 0 0 rgba(229, 134, 60, 0), 0 1px 4px rgba(10, 21, 32, 0.45); }
+  0% { box-shadow: 0 0 0 0 rgba(229, 134, 60, 0.5), 0 2px 5px rgba(10, 21, 32, 0.35); }
+  70% { box-shadow: 0 0 0 8px rgba(229, 134, 60, 0), 0 2px 5px rgba(10, 21, 32, 0.35); }
+  100% { box-shadow: 0 0 0 0 rgba(229, 134, 60, 0), 0 2px 5px rgba(10, 21, 32, 0.35); }
 }
 
 /* Animasi dashboard (selaras dengan halaman login) */
